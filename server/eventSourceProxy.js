@@ -1,12 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import https from 'https';
-
+import PrintingService from './printingService.js';
 
 process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+
+const printingService = new PrintingService();
 
 app.use(cors({
     origin: ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:3000'],
@@ -149,9 +152,59 @@ app.post('/api/contest-proxy', (req, res) => {
         });
 });
 
+
+app.get('/api/printers', async (req, res) => {
+    try {
+        const printers = printingService.getPrinters();
+        res.json(printers);
+    } catch (error) {
+        console.error('❌ Error fetching printers:', error);
+        res.status(500).json({ error: 'Failed to fetch printers', message: error.message });
+    }
+});
+
+app.post('/api/printers/refresh', async (req, res) => {
+    try {
+        const printers = await printingService.refreshPrintersFromAPI();
+        res.json(printers);
+    } catch (error) {
+        console.error('❌ Error refreshing printers:', error);
+        res.status(500).json({ error: 'Failed to refresh printers', message: error.message });
+    }
+});
+
+app.post('/api/print/balloon', async (req, res) => {
+    try {
+        const { deliveryData, printConfig } = req.body;
+
+        if (!deliveryData) {
+            return res.status(400).json({ error: 'Missing delivery data' });
+        }
+
+        console.log('🖨️ Print request received for:', deliveryData.team, '- Problem', deliveryData.problemLetter);
+
+        const result = await printingService.printBalloonDelivery(deliveryData, printConfig);
+
+        console.log('✅ Print job completed successfully');
+        res.json({
+            success: true,
+            message: 'Balloon delivery printed successfully',
+            ...result
+        });
+    } catch (error) {
+        console.error('❌ Print error:', error);
+        res.status(500).json({
+            error: 'Failed to print balloon delivery',
+            message: error.message
+        });
+    }
+});
+
 app.listen(PORT, () => {
-    console.log(`� Contest Proxy Server running on port ${PORT}`);
-    console.log(`� Proxy endpoint: http://localhost:${PORT}/api/contest-proxy`);
+    console.log(`🚀 Contest Proxy Server running on port ${PORT}`);
+    console.log(`📡 Proxy endpoint: http://localhost:${PORT}/api/contest-proxy`);
+    console.log(`🖨️ Print endpoint: http://localhost:${PORT}/api/print/balloon`);
+    console.log(`🖨️ Printers endpoint: http://localhost:${PORT}/api/printers`);
     console.log(`🔒 SSL certificate verification: DISABLED (allows self-signed certificates)`);
 });
 
