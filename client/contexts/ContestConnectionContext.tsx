@@ -14,6 +14,25 @@ interface ApiConfig {
   password: string;
 }
 
+interface PrintConfig {
+  enablePrinting: boolean;
+  printerName: string;
+  printTemplate: "basic" | "detailed";
+  includeQRCode: boolean;
+}
+
+interface PrinterInfo {
+  name: string;
+  displayName?: string;
+  isDefault?: boolean;
+  status?: string;
+}
+
+interface PrintersData {
+  availablePrinters: PrinterInfo[];
+  defaultPrinter: string;
+}
+
 interface ConnectionStatus {
   status: "connected" | "disconnected" | "error" | "testing";
   lastSync: string | null;
@@ -30,11 +49,16 @@ interface ContestEvent {
 interface ContestConnectionContextType {
   connectionStatus: ConnectionStatus;
   apiConfig: ApiConfig;
+  printConfig: PrintConfig;
+  availablePrinters: PrinterInfo[];
   isConnected: boolean;
 
   connect: () => void;
   disconnect: () => void;
   updateConfig: (config: Partial<ApiConfig>) => void;
+  updatePrintConfig: (config: Partial<PrintConfig>) => void;
+  printBalloonDelivery: (delivery: any, contestData: any) => Promise<void>;
+  fetchPrinters: () => Promise<void>;
 
   events: ContestEvent[];
   clearEvents: () => void;
@@ -77,6 +101,15 @@ export const ContestConnectionProvider: React.FC<
     password: "",
   });
 
+  const [printConfig, setPrintConfig] = useState<PrintConfig>({
+    enablePrinting: false,
+    printerName: "",
+    printTemplate: "basic",
+    includeQRCode: false,
+  });
+
+  const [availablePrinters, setAvailablePrinters] = useState<PrinterInfo[]>([]);
+
   const [events, setEvents] = useState<ContestEvent[]>([]);
   const [autoReconnect, setAutoReconnect] = useState(true);
 
@@ -105,6 +138,180 @@ export const ContestConnectionProvider: React.FC<
 
   const updateConfig = (newConfig: Partial<ApiConfig>) => {
     setApiConfig((prev) => ({ ...prev, ...newConfig }));
+  };
+
+  const updatePrintConfig = (newConfig: Partial<PrintConfig>) => {
+    setPrintConfig((prev) => ({ ...prev, ...newConfig }));
+  };
+
+  const fetchPrinters = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:3001/api/printers/refresh",
+        {
+          method: "POST",
+        }
+      );
+      if (response.ok) {
+        const data: PrintersData = await response.json();
+        setAvailablePrinters(data.availablePrinters);
+        if (!printConfig.printerName && data.defaultPrinter) {
+          setPrintConfig((prev) => ({
+            ...prev,
+            printerName: data.defaultPrinter,
+          }));
+        }
+
+        console.log("🖨️ Refreshed printers:", data.availablePrinters.length);
+      } else {
+        console.error("Failed to refresh printers:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error refreshing printers:", error);
+    }
+  };
+
+  const printBalloonDelivery = async (delivery: any, contestData: any) => {
+    if (!printConfig.enablePrinting) {
+      console.log("Printing is disabled");
+      return;
+    }
+
+    try {
+      const team = contestData?.teams?.find(
+        (t: any) => t.id === delivery.teamId
+      );
+      const problem = contestData?.problems?.find(
+        (p: any) => p.id === delivery.problemId
+      );
+
+      if (!team || !problem) {
+        console.error("Team or problem data not found for printing");
+        return;
+      }
+
+      const deliveryData = {
+        team: team.name,
+        teamId: delivery.teamId,
+        problem: problem.name,
+        problemLetter: delivery.problemLetter,
+        problemColor: problem.color,
+        problemRgb: problem.rgb,
+        isFirstSolve: delivery.isFirstSolve,
+        isFirstACInContest: delivery.isFirstACInContest,
+        deliveredAt: new Date().toLocaleString(),
+        notes: delivery.notes,
+      };
+
+      const printConfigData = {
+        template: printConfig.printTemplate,
+        printerName: printConfig.printerName,
+        includeQRCode: printConfig.includeQRCode,
+      };
+
+      showPrintNotification(deliveryData.team, deliveryData.problemLetter);
+
+      const response = await fetch("http://localhost:3001/api/print/balloon", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          deliveryData,
+          printConfig: printConfigData,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("✅ Balloon delivery printed successfully:", result);
+      } else {
+        const error = await response.json();
+        console.error("❌ Print request failed:", error);
+        throw new Error(error.message || "Print request failed");
+      }
+    } catch (error) {
+      console.error("Failed to print balloon delivery:", error);
+      showErrorNotification("Failed to print delivery");
+    }
+  };
+
+  const showPrintNotification = (teamName: string, problemLetter: string) => {
+    const notification = document.createElement("div");
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #4CAF50;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 10000;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      max-width: 300px;
+    `;
+    notification.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>🖨️</span>
+        <div>
+          <div style="font-weight: bold;">Printing Balloon Delivery</div>
+          <div style="font-size: 12px; opacity: 0.9;">${teamName} - Problem ${problemLetter}</div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(notification);
+    setTimeout(() => {
+      notification.style.opacity = "0";
+      notification.style.transform = "translateX(100%)";
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 300);
+    }, 3000);
+  };
+
+  const showErrorNotification = (message: string) => {
+    const notification = document.createElement("div");
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #f44336;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 10000;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      max-width: 300px;
+    `;
+    notification.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>❌</span>
+        <div>
+          <div style="font-weight: bold;">Print Error</div>
+          <div style="font-size: 12px; opacity: 0.9;">${message}</div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(notification);
+    setTimeout(() => {
+      notification.style.opacity = "0";
+      notification.style.transform = "translateX(100%)";
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 300);
+    }, 5000);
   };
 
   const disconnect = useCallback(() => {
@@ -236,6 +443,18 @@ export const ContestConnectionProvider: React.FC<
       }
     }
 
+    const savedPrintConfig = localStorage.getItem("balloonPrintConfig");
+    if (savedPrintConfig) {
+      try {
+        const config = JSON.parse(savedPrintConfig);
+        setPrintConfig(config);
+      } catch (error) {
+        console.error("Error loading saved print config:", error);
+      }
+    }
+
+    fetchPrinters();
+
     const wasConnected = localStorage.getItem("balloonWasConnected");
     if (wasConnected === "true") {
       setTimeout(() => {
@@ -274,6 +493,10 @@ export const ContestConnectionProvider: React.FC<
   }, [apiConfig]);
 
   useEffect(() => {
+    localStorage.setItem("balloonPrintConfig", JSON.stringify(printConfig));
+  }, [printConfig]);
+
+  useEffect(() => {
     return () => {
       disconnect();
     };
@@ -284,10 +507,15 @@ export const ContestConnectionProvider: React.FC<
   const contextValue: ContestConnectionContextType = {
     connectionStatus,
     apiConfig,
+    printConfig,
+    availablePrinters,
     isConnected,
     connect,
     disconnect,
     updateConfig,
+    updatePrintConfig,
+    printBalloonDelivery,
+    fetchPrinters,
     events,
     clearEvents,
     autoReconnect,
