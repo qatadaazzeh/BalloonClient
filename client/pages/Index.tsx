@@ -377,7 +377,7 @@ export default function Index() {
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">
-                                  {team?.name || `Team ${delivery.teamId}`}
+                                  {team?.name + ` (ID: ${delivery.teamId})`}
                                 </span>
                                 <Badge variant="outline" className="text-xs">
                                   Problem {delivery.problemLetter}
@@ -494,7 +494,7 @@ export default function Index() {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-medium">
-                                {team?.name || `Team ${delivery.teamId}`}
+                                {team?.name + ` (ID: ${delivery.teamId})`}
                               </span>
                               <Badge variant="outline" className="text-xs">
                                 Problem {delivery.problemLetter}
