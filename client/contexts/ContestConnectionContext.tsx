@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
 } from "react";
 
 interface ApiConfig {
@@ -113,24 +114,70 @@ export const ContestConnectionProvider: React.FC<
   const [events, setEvents] = useState<ContestEvent[]>([]);
   const [autoReconnect, setAutoReconnect] = useState(true);
 
+  const lastContestDataRef = useRef<string>("");
+
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
   const pollingInterval = 7000;
+  const getContestDataHash = useCallback((data: any): string => {
+    try {
+      const { submissions, judgements, teams, problems } =
+        data?.data?.data || {};
+      if (!submissions || !judgements || !teams || !problems) return "";
+      const submissionIds = submissions
+        .map((s: any) => s.id)
+        .sort()
+        .join(",");
+      const judgementIds = judgements
+        .map((j: any) => j.id)
+        .sort()
+        .join(",");
+      const acceptedSubmissions = judgements.filter(
+        (j: any) => j.judgement_type_id === "AC"
+      ).length;
+      const hash = `s:${submissions.length}-j:${judgements.length}-ac:${acceptedSubmissions}-teams:${teams.length}-problems:${problems.length}`;
+      const lastSubmissions = submissions
+        .slice(-3)
+        .map((s: any) => s.id)
+        .join(",");
+      const lastJudgements = judgements
+        .slice(-3)
+        .map((j: any) => j.id)
+        .join(",");
 
-  const addEvent = (type: string, data: any) => {
-    const event: ContestEvent = {
-      type,
-      data,
-      timestamp: new Date().toISOString(),
-    };
+      return `${hash}-lastSub:${lastSubmissions}-lastJudg:${lastJudgements}`;
+    } catch {
+      return "";
+    }
+  }, []);
 
-    setEvents((prev) => {
-      const newEvents = [event, ...prev];
-      return newEvents;
-    });
-  };
+  const addEvent = useCallback(
+    (type: string, data: any) => {
+      if (type === "contest") {
+        const currentHash = getContestDataHash(data);
+        if (currentHash && currentHash === lastContestDataRef.current) {
+          console.log("⏭️ Skipping event - no data changes detected");
+          return;
+        }
+        lastContestDataRef.current = currentHash;
+        console.log("✅ New contest data detected, updating events");
+      }
+
+      const event: ContestEvent = {
+        type,
+        data,
+        timestamp: new Date().toISOString(),
+      };
+
+      setEvents((prev) => {
+        const newEvents = [event, ...prev];
+        return newEvents;
+      });
+    },
+    [getContestDataHash]
+  );
 
   const clearEvents = () => {
     setEvents([]);
