@@ -1,0 +1,14 @@
+{
+  "name": "eventsource-proxy",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node eventSourceProxy.js",
+    "dev": "node eventSourceProxy.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "http-proxy-middleware": "^2.0.6"
+  }
+}
