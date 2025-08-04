@@ -27,7 +27,7 @@ function getDate(date) {
 }
 
 export default function Index() {
-  const { isConnected, events } = useContestConnection();
+  const { isConnected, events, printBalloonDelivery } = useContestConnection();
   const [pendingDeliveries, setPendingDeliveries] = useState<BalloonDelivery[]>(
     []
   );
@@ -163,7 +163,10 @@ export default function Index() {
     );
   }, [allDeliveries]);
 
-  const markAsDelivered = (deliveryId: string) => {
+  const markAsDelivered = async (deliveryId: string) => {
+    const delivery = allDeliveries.find((d) => d.id === deliveryId);
+    if (!delivery) return;
+
     setAllDeliveries((prev) =>
       prev.map((delivery) => {
         if (delivery.id === deliveryId) {
@@ -172,11 +175,18 @@ export default function Index() {
             (prevDelivered) => new Set([...prevDelivered, deliveryKey])
           );
 
-          return {
+          const updatedDelivery = {
             ...delivery,
             status: "delivered" as const,
             deliveredAt: new Date().toISOString(),
           };
+          if (contestData) {
+            printBalloonDelivery(updatedDelivery, contestData).catch((error) =>
+              console.error("Failed to print delivery:", error)
+            );
+          }
+
+          return updatedDelivery;
         }
         return delivery;
       })
