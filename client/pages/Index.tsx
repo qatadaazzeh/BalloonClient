@@ -465,30 +465,23 @@ export default function Index() {
                         <div className="flex items-center space-x-4">
                           <div className="flex items-center gap-2">
                             {getStatusIcon(delivery.status)}
-
-                            <div
-                              className="w-5 h-5 rounded-full border-2 border-background shadow-sm"
-                              style={{
-                                backgroundColor: problem?.rgb || "#000000",
-                              }}
-                            ></div>
+                            <BsBalloonFill
+                              size={32}
+                              color={problem?.rgb || "#000000"}
+                            />
 
                             {delivery.isFirstSolve && (
-                              <div
-                                className="w-5 h-5 rounded-full border-2 border-background shadow-sm"
-                                style={{
-                                  backgroundColor: problem?.rgb || "#000000",
-                                }}
-                              ></div>
+                              <BsBalloonFill
+                                size={32}
+                                color={problem?.rgb || "#000000"}
+                              />
                             )}
 
                             {delivery.isFirstACInContest && (
-                              <div
-                                className="w-5 h-5 rounded-full border-2 border-background shadow-sm"
-                                style={{
-                                  backgroundColor: problem?.rgb || "#000000",
-                                }}
-                              ></div>
+                              <BsBalloonFill
+                                size={32}
+                                color={problem?.rgb || "#000000"}
+                              />
                             )}
                           </div>
                           <div>
