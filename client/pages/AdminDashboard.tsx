@@ -8,6 +8,13 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useContestConnection } from "@/contexts/ContestConnectionContext";
 import {
   ArrowLeft,
@@ -19,16 +26,22 @@ import {
   Activity,
   Play,
   Pause,
+  Printer,
+  FileText,
 } from "lucide-react";
 
 export default function AdminDashboard() {
   const {
     connectionStatus,
     apiConfig,
+    printConfig,
+    availablePrinters,
     isConnected,
     connect,
     disconnect,
     updateConfig,
+    updatePrintConfig,
+    fetchPrinters,
     autoReconnect,
     setAutoReconnect,
   } = useContestConnection();
@@ -41,6 +54,14 @@ export default function AdminDashboard() {
     value: string | number | boolean
   ) => {
     updateConfig({ [field]: value });
+    setHasUnsavedChanges(true);
+  };
+
+  const handlePrintConfigChange = (
+    field: keyof typeof printConfig,
+    value: string | number | boolean
+  ) => {
+    updatePrintConfig({ [field]: value });
     setHasUnsavedChanges(true);
   };
 
@@ -289,6 +310,146 @@ export default function AdminDashboard() {
                     Save API Config
                   </Button>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Printer className="h-5 w-5 text-green-500 dark:text-green-400" />
+                Print Configuration
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="enable-printing">Enable Auto Print</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically print balloon deliveries when marked as
+                        delivered
+                      </p>
+                    </div>
+                    <Switch
+                      id="enable-printing"
+                      checked={printConfig.enablePrinting}
+                      onCheckedChange={(checked) =>
+                        handlePrintConfigChange("enablePrinting", checked)
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="printer-name">Select Printer</Label>
+                    <div className="flex gap-2 mt-2">
+                      <Select
+                        value={printConfig.printerName}
+                        onValueChange={(value: string) =>
+                          handlePrintConfigChange("printerName", value)
+                        }
+                        disabled={!printConfig.enablePrinting}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select a printer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availablePrinters.map((printer) => (
+                            <SelectItem key={printer.name} value={printer.name}>
+                              {printer.displayName || printer.name}
+                              {printer.isDefault && " (Default)"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={fetchPrinters}
+                        disabled={!printConfig.enablePrinting}
+                      >
+                        🔄 Refresh
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {availablePrinters.length > 0
+                        ? `${availablePrinters.length} printer(s) available`
+                        : "No printers found. Click refresh to try again."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="print-template">Print Template</Label>
+                    <Select
+                      value={printConfig.printTemplate}
+                      onValueChange={(value: "basic" | "detailed") =>
+                        handlePrintConfigChange("printTemplate", value)
+                      }
+                      disabled={!printConfig.enablePrinting}
+                    >
+                      <SelectTrigger className="mt-2">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="basic">Basic Template</SelectItem>
+                        <SelectItem value="detailed">
+                          Detailed Template
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Choose between basic or detailed print format
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="include-qr">Include QR Code</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Add verification code to printed receipts
+                      </p>
+                    </div>
+                    <Switch
+                      id="include-qr"
+                      checked={printConfig.includeQRCode}
+                      onCheckedChange={(checked) =>
+                        handlePrintConfigChange("includeQRCode", checked)
+                      }
+                      disabled={!printConfig.enablePrinting}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="text-sm p-3 bg-green-50 border border-green-200 rounded-md dark:bg-green-900/20 dark:border-green-800">
+                <p className="font-medium text-green-800 dark:text-green-300 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Backend Print Service
+                </p>
+                <p className="text-green-700 dark:text-green-400 mt-1">
+                  Printing is handled by the backend server for reliable,
+                  automatic delivery receipt printing. No browser popups or user
+                  interaction required.
+                </p>
+                <p className="text-green-600 dark:text-green-500 mt-2 text-xs">
+                  <strong>Requirements:</strong> Backend server must be running
+                  on port 3001. Printers are automatically detected from your
+                  system.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveConfig} disabled={isLoading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Print Config
+                </Button>
               </div>
             </CardContent>
           </Card>
